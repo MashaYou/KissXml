@@ -20,22 +20,15 @@ internal data class XmlNode private constructor(
         attributes = mutableMapOf(),
     )
 
-    val isPrimitive by lazy {
-        children.size == 0 && content != null
-    }
+    val isPrimitive get() = children.size == 0 && content != null
+    val isRoot get() = parent == null
+    val isStructure get() = content == null
 
-    val isRoot by lazy {
-        parent == null
-    }
-
-    val isStructure by lazy {
-        content == null
-    }
 
     /**
      * @return all neighbours/siblings (all children of current node's parent), grouped by tag.
      */
-    val siblingsMap by lazy { getSiblings().groupBy { it.tag } }
+    val siblingsMap get() = getSiblings().groupBy { it.tag }
 
     fun getParent(): XmlNode? {
         return parent
@@ -62,8 +55,6 @@ internal data class XmlNode private constructor(
 
     fun getChildrenNodes() = children
     private fun getSiblings(): List<XmlNode> = parent?.children ?: listOf(this)
-
-    fun getElementsList(tag: String) : List<XmlNode> = children.filter { it.tag == tag }
 
     fun getFirstChild() = children.elementAtOrNull(0)
 

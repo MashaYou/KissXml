@@ -8,14 +8,14 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 
-class DecoderTest : FunSpec() {
+class PrimitiveDecoderTest : FunSpec() {
 
     private val xml = Xml(
         decodingConfig = XmlDecodingConfig(true),
     )
 
     init {
-        context("Primitives, embedded structures decoding") {
+        context("Primitives decoding") {
             withData<TestCase>(
                 nameFn = { it.input },
                 listOf(
@@ -33,24 +33,11 @@ class DecoderTest : FunSpec() {
                     ),
                     TestCase(
                         input = "<folder><Name>A</Name><Placemark><color>Red</color><code>15.23</code><visible>1</visible></Placemark></folder>",
-                        expected = Folder("A", placemark =  Placemark("Red", 15.23, true)),
+                        expected = Folder("A", placemark = Placemark("Red", 15.23, true)),
                     ),
                     TestCase(
-                        input = "<folder><Name>Documents</Name><folder><Name>Inner</Name><Placemark><color>Red</color><code>15.23</code><visible>1</visible></Placemark></folder></folder>",
-                        expected = Folder("Documents", folder = Folder("Inner", placemark =  Placemark("Red", 15.23, true))),
-                    ),
-                )
-            ) { (input, expected) ->
-                xml.decodeFromString<Folder>(input) shouldBe expected
-            }
-        }
-        context("Enum decoding") {
-            withData<TestCase>(
-                nameFn = { it.input },
-                listOf(
-                    TestCase(
-                        input = "<folder><Name>Documents</Name><Placemark><color>Red</color><code>15.23</code><visible>1</visible><type>A</type></Placemark></folder>",
-                        expected = Folder("Documents", placemark =  Placemark("Red", 15.23, true, type = Type.A)),
+                        input = "<folder><Name><![CDATA[<sender>John Smith</sender>]]></Name></folder>",
+                        expected = Folder("<![CDATA[<sender>John Smith</sender>]]>"),
                     ),
                 )
             ) { (input, expected) ->
@@ -80,12 +67,5 @@ class DecoderTest : FunSpec() {
         val color: String,
         val code: Double,
         val visible: Boolean,
-        val type: Type? = null,
     )
-
-    private enum class Type {
-        A,
-        B,
-        C
-    }
 }
