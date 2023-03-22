@@ -10,19 +10,22 @@ import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.StructureKind
+import kotlinx.serialization.descriptors.elementDescriptors
 import kotlinx.serialization.encoding.AbstractDecoder
 import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.modules.EmptySerializersModule
 import kotlinx.serialization.modules.SerializersModule
 
 /**
- * @param nextElementIndex rootNode siblings index.
+ * Main XML decoder for structures and primitives.
+ * @param nextElementIndex rootNode siblings index (rootNode.siblingsMap.entries).
  */
 @OptIn(ExperimentalSerializationApi::class)
-internal class XmlDecoder(
+internal open class XmlDecoder(
     private val rootNode: XmlNode,
     private val config: XmlDecodingConfig = XmlDecodingConfig(true),
-    private val descriptior: SerialDescriptor,
+    private val currentStructureDescriptior: SerialDescriptor,
     private var nextElementIndex: Int = 0,
 ) : AbstractDecoder() {
     companion object {
@@ -39,7 +42,7 @@ internal class XmlDecoder(
             val decoder = XmlDecoder(
                 rootNode = root,
                 config = config,
-                descriptior = deserializer.descriptor,
+                currentStructureDescriptior = deserializer.descriptor,
             )
             return decoder.decodeSerializableValue(deserializer)
         }
@@ -52,13 +55,24 @@ internal class XmlDecoder(
      * Returns a new instance of the XmlDecoder, so that each structure that is being
      * recursively decoded keeps track of its own elementIndex state separately.
      */
-    override fun beginStructure(descriptor: SerialDescriptor): XmlDecoder {
-        val firstChild = if (rootNode.isRoot) {
-            rootNode.getFirstChild()
-        } else {
-            getCurrentNode().getFirstChild()
+    override fun beginStructure(descriptor: SerialDescriptor): AbstractDecoder {
+        val firstChild = when {
+            descriptor.kind == StructureKind.LIST -> {
+                val currentNode = getCurrentNode()
+                val list = currentNode.siblingsMap[currentNode.tag].orEmpty().mapNotNull { it.getContent() }
+                return ListDecoder(
+                    list = list,
+                    descriptor = descriptor.elementDescriptors.first(),
+                )
+            }
+            rootNode.isRoot -> rootNode.getFirstChild()
+            else -> getCurrentNode().getFirstChild()
         } ?: rootNode
-        return XmlDecoder(firstChild, config, descriptor)
+        return XmlDecoder(
+            rootNode = firstChild,
+            config = config,
+            currentStructureDescriptior = descriptor,
+        )
     }
 
     /**
@@ -71,17 +85,19 @@ internal class XmlDecoder(
             return CompositeDecoder.DECODE_DONE
         }
 
-        val nextNode = rootNode.getSiblings().elementAt(nextElementIndex)
-        val nextIndex = descriptor.getElementIndex(nextNode.tag)
+        val nextElement = rootNode.siblingsMap.entries.elementAt(nextElementIndex).value.first()
+        val nextIndex = descriptor.getElementIndex(nextElement.tag)
 
         if (nextIndex == CompositeDecoder.UNKNOWN_NAME) {
-            throw UnknownTagException(nextNode.tag, nextNode.getParent()?.tag)
+            throw UnknownTagException(nextElement.tag, nextElement.getParent()?.tag)
         }
         nextElementIndex++
         return nextIndex
     }
     override fun decodeValue(): Any {
-        val primitiveKind = descriptior.getElementDescriptor(nextElementIndex - 1).kind
+        val primitiveKind = currentStructureDescriptior
+            .getElementDescriptor(nextElementIndex - 1)
+            .kind
         val value = getCurrentNode().getContent()
             ?: throw DecodingException("Cannot decode the value: [null] like [${primitiveKind}].")
         try {
@@ -89,6 +105,7 @@ internal class XmlDecoder(
                 PrimitiveKind.INT -> value.toInt()
                 PrimitiveKind.LONG -> value.toLong()
                 PrimitiveKind.DOUBLE -> value.toDouble()
+                PrimitiveKind.SHORT -> value.toShort()
                 else -> value
             }
         } catch (e: ClassCastException) {
@@ -107,6 +124,12 @@ internal class XmlDecoder(
         }
     }
 
+    override fun decodeCollectionSize(descriptor: SerialDescriptor): Int {
+        val currentNode = getCurrentNode()
+        val list = currentNode.siblingsMap[currentNode.tag].orEmpty()
+        return list.size
+    }
+
     override fun decodeEnum(enumDescriptor: SerialDescriptor): Int {
         val value = decodeValue().toString()
         val index = enumDescriptor.getElementIndex(value)
@@ -118,6 +141,10 @@ internal class XmlDecoder(
         return index
     }
 
-    private fun isDecodingDone() = rootNode.isRoot || nextElementIndex == rootNode.getSiblings().size
-    private fun getCurrentNode(): XmlNode = rootNode.getSiblings().elementAt(nextElementIndex - 1)
+    private fun isDecodingDone() =
+        // we iterate all over structure and return to start point
+        rootNode.isRoot
+                // internal structure ends
+            || nextElementIndex == rootNode.siblingsMap.size
+    private fun getCurrentNode() = rootNode.siblingsMap.entries.elementAt(nextElementIndex - 1).value.first()
 }

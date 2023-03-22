@@ -76,7 +76,6 @@ class DecoderTest : FunSpec() {
     )
 
     @Serializable
-    @SerialName("Placemark")
     private data class Placemark(
         val color: String,
         val code: Double,

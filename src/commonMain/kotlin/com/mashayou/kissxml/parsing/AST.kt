@@ -32,6 +32,11 @@ internal data class XmlNode private constructor(
         content == null
     }
 
+    /**
+     * @return all neighbours/siblings (all children of current node's parent), grouped by tag.
+     */
+    val siblingsMap by lazy { getSiblings().groupBy { it.tag } }
+
     fun getParent(): XmlNode? {
         return parent
     }
@@ -44,29 +49,21 @@ internal data class XmlNode private constructor(
         return content
     }
 
-    /**
-     * Use this fun to add child, not constructor!
-     */
     fun addChildNode(child: XmlNode) {
         child.parent = this
         children.add(child)
     }
 
-    /**
-     * Use this fun to add children, not constructor!
-     */
     fun addChildren(newChildren: List<XmlNode>) {
         newChildren.forEach {
-            children.add(it)
+            addChildNode(it)
         }
     }
 
     fun getChildrenNodes() = children
+    private fun getSiblings(): List<XmlNode> = parent?.children ?: listOf(this)
 
-    /**
-     * @return all neighbours/siblings (all children of current node's parent)
-     */
-    fun getSiblings(): List<XmlNode> = parent?.children ?: listOf(this)
+    fun getElementsList(tag: String) : List<XmlNode> = children.filter { it.tag == tag }
 
     fun getFirstChild() = children.elementAtOrNull(0)
 
