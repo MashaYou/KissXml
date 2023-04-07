@@ -11,14 +11,13 @@ import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.modules.EmptySerializersModule
 import kotlinx.serialization.modules.SerializersModule
 
-
 @OptIn(ExperimentalSerializationApi::class)
 internal abstract class BaseXmlDecoder(
     protected val config: XmlDecodingConfig,
     protected val structureDescriptor: SerialDescriptor,
 ) : AbstractDecoder() {
     /**
-     *  Root node's siblings index (rootNode.siblingsMap.entries).
+     * Root node's siblings index (rootNode.siblingsMap.entries).
      */
     protected var nextElementIndex: Int = 0
 
@@ -77,8 +76,7 @@ internal abstract class BaseXmlDecoder(
     protected abstract fun isDecodingDone() : Boolean
 
     protected fun getValue(kind: SerialKind) : Any {
-        val value = getCurrentNode().getContent()
-            ?: throw DecodingException("Cannot decode null value like [$kind].")
+        val value = getCurrentNode().getContent().orEmpty()
 
         try {
             return when (kind) {

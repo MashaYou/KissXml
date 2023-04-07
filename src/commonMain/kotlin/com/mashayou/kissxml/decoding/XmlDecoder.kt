@@ -55,7 +55,11 @@ internal class XmlDecoder(
         val nextIndex = descriptor.getElementIndex(nextElement.tag)
 
         if (nextIndex == CompositeDecoder.UNKNOWN_NAME) {
-            throw UnknownTagException(nextElement.tag, nextElement.getParent()?.tag)
+            if (config.ignoreUnknownTags) {
+                return iterateUntilFindAnyKnownTag(descriptor)
+            } else {
+                throw UnknownTagException(nextElement.tag, nextElement.getParent()?.tag)
+            }
         }
         nextElementIndex++
         return nextIndex
@@ -66,6 +70,21 @@ internal class XmlDecoder(
             .getElementDescriptor(nextElementIndex - 1)
             .kind
     )
+
+    private fun iterateUntilFindAnyKnownTag(descriptor: SerialDescriptor): Int {
+        while (true) {
+            if (isDecodingDone()) {
+                return CompositeDecoder.DECODE_DONE
+            }
+            val nextElement = rootNode.siblingsMap.entries.elementAt(nextElementIndex).value.first()
+            val nextIndex = descriptor.getElementIndex(nextElement.tag)
+
+            nextElementIndex++
+            if (nextIndex != CompositeDecoder.UNKNOWN_NAME) {
+                return nextIndex
+            }
+        }
+    }
 
     override fun isDecodingDone() = rootNode.isRoot || nextElementIndex == rootNode.siblingsMap.size
     override fun getCurrentNode() = rootNode.siblingsMap.entries.elementAt(nextElementIndex - 1).value.first()
